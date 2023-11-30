@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.33627.172
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SHA", "SHA\SHA.fsproj", "{C254C0B3-99D5-4BEF-AC1F-7DE011A9E60E}"
+EndProject
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SHATests", "SHATests\SHATests.fsproj", "{69363375-7956-4BC4-AA66-3204DFE24D4E}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{DE5B239A-570D-4968-905A-AD437444CEC8}"
+	ProjectSection(SolutionItems) = preProject
+		LICENSE = LICENSE
+		README.md = README.md
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C254C0B3-99D5-4BEF-AC1F-7DE011A9E60E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C254C0B3-99D5-4BEF-AC1F-7DE011A9E60E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C254C0B3-99D5-4BEF-AC1F-7DE011A9E60E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C254C0B3-99D5-4BEF-AC1F-7DE011A9E60E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{69363375-7956-4BC4-AA66-3204DFE24D4E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{69363375-7956-4BC4-AA66-3204DFE24D4E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{69363375-7956-4BC4-AA66-3204DFE24D4E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{69363375-7956-4BC4-AA66-3204DFE24D4E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {9E03F81E-0948-404C-9D97-36F45A1E0549}
+	EndGlobalSection
+EndGlobal
