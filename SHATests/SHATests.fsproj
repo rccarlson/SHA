@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -83,7 +83,8 @@
     <Compile Include="Types.fs" />
     <Compile Include="UnitTests.fs" />
     <Compile Include="RSPTests.fs" />
-    <Compile Include="ManualShaTests.fs" />
+    <Compile Include="ManualTests.fs" />
+    <Compile Include="NetImplementationComparison.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

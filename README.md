@@ -12,14 +12,18 @@ Finally, this code is optimized for readability of source code, NOT performance.
 
 ## Implemented hash functions:
 
-- [x] SHA1 (functional and object oriented implementations)
-- [x] SHA256
-- [x] SHA224
-- [x] SHA384
-- [x] SHA512
-- [x] SHA512/t
-  - [x] SHA512/224
-  - [x] SHA512/256
+- Secure Hash Algorithms
+    - [x] SHA1 (functional and object oriented implementations)
+    - [x] SHA256
+    - [x] SHA224
+    - [x] SHA384
+    - [x] SHA512
+    - [x] SHA512/t
+      - [x] SHA512/224
+      - [x] SHA512/256
+- Message Digest Algorithms
+    - [x] MD4
+    - [x] MD5
 
 ## Reflections
 
@@ -29,6 +33,14 @@ The SHA functions have many reusable components between them, so much of this pr
 
 I was never able to get the Monte Carlo tests working, as I could never figure out how to set it up properly ([Source document](https://csrc.nist.gov/csrc/media/projects/cryptographic-algorithm-validation-program/documents/shs/shavs.pdf)). The implementations pass all other tests, so have no reason to believe they wouldn't also pass the Monte Carlo tests if I could just figure out how to set up such a test. If I were to revisit this project, I would want to actually figure that out and have that extra layer of validation.
 
+### MD4/5Update
+
+This is not a SHA function, yes, but I wanted to implement it so I did.
+
+This was harder than I expected, simply because of the fact that MD5 is oriented around little endian numbers. I would have failed entirely if it weren't for [this project](https://github.com/MrBlackk/md5_sha256-512_debugger) that lays out what values to expect after each step.
+
+I also broke off a lot of code into a `Utility` module, though I'm not sure that was actually necessary for a lot of the functions I did this to.
+
 ### Future work
 
-I would like to implement the SHA-3 functions from [FIPS 202](https://csrc.nist.gov/pubs/fips/202/final), and maybe some non-SHA functions such as MD5. SHA-3 seems a significant step up in complexity and might be a good exercise.
+I would like to implement the SHA-3 functions from [FIPS 202](https://csrc.nist.gov/pubs/fips/202/final), but after reviewing that, the state array is nightmare fuel and, as this is just a project for fun, I likely will not be tackling that any time soon.

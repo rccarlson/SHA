@@ -6,19 +6,6 @@ module SecureHashingAlgorithms
 
 open System
 
-/// Builds an array of fixed length based on a constructor function that generates values for the array.
-/// Caches values once they are calculated to make sure values are never re-calculated
-let private buildArray<'TOut> size (constructor : (int -> 'TOut) -> int -> 'TOut) =
-  if size <= 0 then invalidArg "size" "Array size should be greater than zero."
-  let arr = Array.init size (fun _ -> None)
-  let rec getValue index =
-    arr[index] |> Option.defaultWith (fun _ ->
-      let value = index |> constructor getValue
-      arr[index] <- value |> Some
-      value
-    )
-  Array.init size getValue
-
 let inline private addTuple_5<^T
   when ^T : (static member (+) : ^T * ^T -> ^T)>
   (a: ^T * ^T * ^T * ^T * ^T)
@@ -36,46 +23,23 @@ let inline private addTuple_8<^T
   a0 + b0, a1 + b1, a2 + b2, a3 + b3,
   a4 + b4, a5 + b5, a6 + b6, a7 + b7
   
-/// Converts a uint64 into its component bytes in big endian order
-let private uint64ToBytes (value : uint64) : byte array =
-  Array.init 8 (fun i ->
-    let mask = 0xFFuL <<< (8*i)
-    let asLong = (mask &&& value) >>> (8*i)
-    asLong |> byte
-  )
-  |> Array.rev // little endian -> big endian
-
-/// Pads the data with a 1, followed by zeros and the data length
-let private pad (mlBytes : byte array) (data : byte array) =
-  let bitwidth = mlBytes.Length * 8
-  let paddingSize =
-    let mlBytes = bitwidth / 8
-    let baseLength = (data.Length + 1) % bitwidth
-    ((bitwidth*2) - baseLength - mlBytes) % bitwidth
-  Array.concat [|
-    data
-    [| 0x80uy |]
-    Array.zeroCreate paddingSize
-    mlBytes
-  |]
-
 /// § 5.1.1
 ///
-/// Pads the data with a 1, followed by zeros and the data length as a uint64.
+/// Pads the data with a 1, followed by zeros and the data length as a uint64 in big endian order.
 let internal pad64 (data : byte array) =
   let ml = data.LongLength * 8L |> uint64
-  let mlVals = uint64ToBytes ml
+  let mlVals = uint64ToBytes_be ml
   pad mlVals data
 
 /// § 5.1.2
 ///
-/// Pads the data with a 1, followed by zeros and the data length as a uint128
+/// Pads the data with a 1, followed by zeros and the data length as a uint128 in big endian order
 let internal pad128 (data : byte array) =
   let length = data.LongLength |> uint64
   let mlVals =
     Array.append
-      (uint64ToBytes (length >>> (64 - 3))) // upper
-      (uint64ToBytes (length <<< 3)) // lower
+      (uint64ToBytes_be (length >>> (64 - 3))) // upper
+      (uint64ToBytes_be (length <<< 3)) // lower
   pad mlVals data
 
 let inline private Ch<^T when ^T: (static member (&&&) : ^T * ^T -> ^T)
@@ -178,17 +142,9 @@ let inline private K_512 t =
     0x4cc5d4becb3e42b6uL; 0x597f299cfc657e2auL; 0x5fcb6fab3ad6faecuL; 0x6c44198c4a475817uL
   |] |> Array.item t
 
-/// composes a Uint32 from the binary of four bytes in big-endian format
-let private bytesToUint32 (byte0:byte) (byte1:byte) (byte2:byte) (byte3:byte) =
-    (uint32(byte0) <<< (8*3)) + (uint32(byte1) <<< (8*2)) + (uint32(byte2) <<< (8*1)) + (uint32(byte3) <<< (8*0))
-
-/// composes a Uint64 from the binary of eight bytes in big-endian format
-let private bytesToUint64 (byte0:byte) (byte1:byte) (byte2:byte) (byte3:byte) (byte4:byte) (byte5:byte) (byte6:byte) (byte7:byte) =
-    (uint64(byte0) <<< (8*7)) + (uint64(byte1) <<< (8*6)) + (uint64(byte2) <<< (8*5)) + (uint64(byte3) <<< (8*4)) +
-    (uint64(byte4) <<< (8*3)) + (uint64(byte5) <<< (8*2)) + (uint64(byte6) <<< (8*1)) + (uint64(byte7) <<< (8*0))
-
-let private buildMessageSchedule32 newSize generator (chunk : byte array) : uint32 array =
-  buildArray newSize (fun W t ->
+/// given a set of bytes, create an array of uint32 words
+let internal buildMessageSchedule32 newSize generator (chunk : byte array) : uint32 array =
+  Utility.buildArray newSize (fun W t ->
     if t < chunk.Length / 4 then 
       let byte0 = chunk[(t*4)+0]
       let byte1 = chunk[(t*4)+1]
@@ -198,8 +154,8 @@ let private buildMessageSchedule32 newSize generator (chunk : byte array) : uint
     else
       generator W t
   )
-let private buildMessageSchedule64 newSize generator (chunk : byte array) : uint64 array =
-  buildArray newSize (fun W t ->
+let internal buildMessageSchedule64 newSize generator (chunk : byte array) : uint64 array =
+  Utility.buildArray newSize (fun W t ->
     if t < chunk.Length / 8 then 
       let byte0 = chunk[(t*8)+0]
       let byte1 = chunk[(t*8)+1]

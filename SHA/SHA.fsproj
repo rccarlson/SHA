@@ -6,8 +6,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="Utility.fs" />
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="SecureHashingAlgorithms.fs" />
+    <Compile Include="MessageDigestAlgorithms.fs" />
   </ItemGroup>
 
   <ItemGroup />
