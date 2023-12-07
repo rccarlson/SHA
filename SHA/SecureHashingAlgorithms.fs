@@ -42,20 +42,11 @@ let internal pad128 (data : byte array) =
       (uint64ToBytes_be (length <<< 3)) // lower
   pad mlVals data
 
-let inline private Ch<^T when ^T: (static member (&&&) : ^T * ^T -> ^T)
-                          and ^T: (static member (~~~) : ^T -> ^T)
-                          and ^T: (static member (^^^) : ^T * ^T -> ^T)>
-                          (x:^T) (y:^T) (z:^T) =
-                            (x &&& y) ^^^ ((~~~x) &&& z)
+let inline private Ch x y z = (x &&& y) ^^^ ((~~~x) &&& z)
 
-let inline private Parity<^T when ^T: (static member (^^^) : ^T * ^T -> ^T)>
-                          (x:^T) (y:^T) (z:^T) =
-                            x ^^^ y ^^^ z
+let inline private Parity x y z = x ^^^ y ^^^ z
 
-let inline private Maj<^T when ^T: (static member (&&&) : ^T * ^T -> ^T)
-                          and ^T: (static member (^^^) : ^T * ^T -> ^T)>
-                          (x:^T) (y:^T) (z:^T) =
-                            (x &&& y) ^^^ (x &&& z) ^^^ (y &&& z)
+let inline private Maj x y z = (x &&& y) ^^^ (x &&& z) ^^^ (y &&& z)
 
 let inline private rotr<'T when 'T: (static member RotateRight : 'T * int -> 'T)>
   (value : 'T) (rotateAmount : int) =
@@ -142,33 +133,21 @@ let inline private K_512 t =
     0x4cc5d4becb3e42b6uL; 0x597f299cfc657e2auL; 0x5fcb6fab3ad6faecuL; 0x6c44198c4a475817uL
   |] |> Array.item t
 
-/// given a set of bytes, create an array of uint32 words
-let internal buildMessageSchedule32 newSize generator (chunk : byte array) : uint32 array =
+let private buildMessageSchedule wordByteSize bytesToWord newSize generator (chunk : byte array) =
+  let words =
+    chunk
+    |> Array.chunkBySize wordByteSize
+    |> Array.map bytesToWord
+
   Utility.buildArray newSize (fun W t ->
-    if t < chunk.Length / 4 then 
-      let byte0 = chunk[(t*4)+0]
-      let byte1 = chunk[(t*4)+1]
-      let byte2 = chunk[(t*4)+2]
-      let byte3 = chunk[(t*4)+3]
-      bytesToUint32 byte0 byte1 byte2 byte3
+    if t < chunk.Length / wordByteSize then 
+      words[t]
     else
       generator W t
   )
-let internal buildMessageSchedule64 newSize generator (chunk : byte array) : uint64 array =
-  Utility.buildArray newSize (fun W t ->
-    if t < chunk.Length / 8 then 
-      let byte0 = chunk[(t*8)+0]
-      let byte1 = chunk[(t*8)+1]
-      let byte2 = chunk[(t*8)+2]
-      let byte3 = chunk[(t*8)+3]
-      let byte4 = chunk[(t*8)+4]
-      let byte5 = chunk[(t*8)+5]
-      let byte6 = chunk[(t*8)+6]
-      let byte7 = chunk[(t*8)+7]
-      bytesToUint64 byte0 byte1 byte2 byte3 byte4 byte5 byte6 byte7
-    else
-      generator W t
-  )
+
+let internal buildMessageSchedule32 = buildMessageSchedule 4 bytesToUint32
+let internal buildMessageSchedule64 = buildMessageSchedule 8 bytesToUint64
 
 /// An object oriented implementation of the SHA1 hash function.
 let sha1_oo (input : byte[]) : byte[] =
@@ -186,11 +165,8 @@ let sha1_oo (input : byte[]) : byte[] =
     if (chunk.Length <> blockSize) then raise (ArgumentException($"Received block of size {chunk.Length}. All blocks must be of size {blockSize}"))
     // break chunk into sixteen 32-bit big-endian words w[i], 0<= i <= 15
     let words16 = Array.init 16 (fun i ->
-      let byte0 = chunk[(i*4)+0]
-      let byte1 = chunk[(i*4)+1]
-      let byte2 = chunk[(i*4)+2]
-      let byte3 = chunk[(i*4)+3]
-      bytesToUint32 byte0 byte1 byte2 byte3
+      Array.sub chunk (i*4) 4
+      |> bytesToUint32
     )
     // extend the sixteen 32-bit words into eighty 32-bit words
     let words80 = Array.zeroCreate 80
@@ -220,11 +196,8 @@ let sha1_oo (input : byte[]) : byte[] =
     h3 <- h3 + d
     h4 <- h4 + e
 
-  let hhBytes =
-    [| h0; h1; h2; h3; h4 |]
-    |> Array.collect (fun h -> Array.init 4 (fun i -> h <<< (8*i) >>> 24 |> byte))
-
-  hhBytes
+  [| h0; h1; h2; h3; h4 |]
+  |> Array.collect (fun h -> Array.init 4 (fun i -> h <<< (8*i) >>> 24 |> byte))
 
 /// An implementation of the sha1 hash function, taking a functional design approach
 let sha1 =
@@ -234,9 +207,9 @@ let sha1 =
     let f = F t b c d
     let k = K_32 t
 
-    (rotl a 5) + f + e + k + (uint words[t]), // a
+    UInt32.RotateLeft(a, 5) + f + e + k + words[t], // a
     a, // b
-    (rotl b 30), // c
+    UInt32.RotateLeft(b, 30), // c
     c, // d
     d  // e
 
@@ -249,14 +222,8 @@ let sha1 =
 
   pad64
   >> Array.chunkBySize 64
-  >> Array.map (buildMessageSchedule32 80 (fun W t ->
-      W (t-3) ^^^ W (t-8) ^^^ W (t-14) ^^^ W (t-16)
-      |> fun value -> rotl value 1
-    )
-  )
-  >> Seq.fold
-    (fun state chunk -> sha1_internal 79 state chunk |> addTuple_5 state)
-    h_initial
+  >> Array.map (buildMessageSchedule32 80 (fun W t -> UInt32.RotateLeft(W (t-3) ^^^ W (t-8) ^^^ W (t-14) ^^^ W (t-16), 1)))
+  >> Seq.fold (fun state -> sha1_internal 79 state >> addTuple_5 state) h_initial
   >> tupleToHomogeneousArray<uint32>
   >> Array.collect (fun h -> Array.init 4 (fun i -> h <<< (8*i) >>> 24 |> byte))
 
@@ -268,25 +235,24 @@ let private sha256_h h_initial =
     let T2 = Σ256_0 a + Maj a b c
 
     T1 + T2, //a
-    a, //b
-    b, //c
-    c, //d
-    d + T1, // e
-    e, //f
-    f, //g
-    g //h
+    a,       //b
+    b,       //c
+    c,       //d
+    d + T1,  // e
+    e,       //f
+    f,       //g
+    g        //h
 
   pad64 // §5.1: padding the message
   >> Array.chunkBySize 64 // §5.2: parsing into message blocks
   >> Array.map (buildMessageSchedule32 64 (fun W t -> σ256_1 (W (t-2)) + W (t-7) + σ256_0 (W (t-15)) + W (t-16)))
-  >> Seq.fold
-    (fun state chunk -> sha256_internal 63 state chunk |> addTuple_8 state)
-    h_initial
+  >> Seq.fold (fun state -> sha256_internal 63 state >> addTuple_8 state) h_initial
   >> tupleToHomogeneousArray<uint32>
   >> Array.collect (fun h -> Array.init 4 (fun i -> h <<< (8*i) >>> 24 |> byte))
 
 let sha256 =
-  let h_initial = // §5.3.3: H0
+  sha256_h (
+    // §5.3.3: H0
     0x6a09e667u,
     0xbb67ae85u,
     0x3c6ef372u,
@@ -294,13 +260,12 @@ let sha256 =
     0x510e527fu,
     0x9b05688cu,
     0x1f83d9abu,
-    0x5be0cd19u
-
-  sha256_h h_initial
+    0x5be0cd19u)
 
 let sha224 =
   // Same as sha256, with different h_init and outputting leftmost 224 bits (28 bytes)
-  let h_initial = // § 5.3.2
+  sha256_h (
+    // § 5.3.2
     0xc1059ed8u,
     0x367cd507u,
     0x3070dd17u,
@@ -309,7 +274,8 @@ let sha224 =
     0x68581511u,
     0x64f98fa7u,
     0xbefa4fa4u
-  sha256_h h_initial >> Array.take 28
+  )
+  >> Array.take 28
 
 let private sha512_h h_initial =
   let rec sha512_internal t state (words : uint64 array) =
@@ -330,9 +296,7 @@ let private sha512_h h_initial =
   pad128
   >> Array.chunkBySize 128
   >> Array.map (buildMessageSchedule64 80 (fun W t -> σ512_1 (W (t-2)) + W (t-7) + σ512_0 (W (t-15)) + W (t-16)))
-  >> Seq.fold
-    (fun state chunk -> sha512_internal 79 state chunk |> addTuple_8 state)
-    h_initial
+  >> Seq.fold (fun state -> sha512_internal 79 state >> addTuple_8 state) h_initial
   >> tupleToHomogeneousArray<uint64>
   >> Array.collect (fun h -> Array.init 8 (fun i -> h <<< (8*i) >>> (64-8) |> byte))
 
@@ -368,22 +332,22 @@ let sha384 =
 let sha512t t =
   if t <= 0 || t > 512 || t = 384 then raise (ArgumentOutOfRangeException(t.ToString())) else
   let h0_primeprime =
-    0x6a09e667f3bcc908uL ^^^ 0xa5a5a5a5a5a5a5a5uL,
-    0xbb67ae8584caa73buL ^^^ 0xa5a5a5a5a5a5a5a5uL,
-    0x3c6ef372fe94f82buL ^^^ 0xa5a5a5a5a5a5a5a5uL,
-    0xa54ff53a5f1d36f1uL ^^^ 0xa5a5a5a5a5a5a5a5uL,
-    0x510e527fade682d1uL ^^^ 0xa5a5a5a5a5a5a5a5uL,
-    0x9b05688c2b3e6c1fuL ^^^ 0xa5a5a5a5a5a5a5a5uL,
-    0x1f83d9abfb41bd6buL ^^^ 0xa5a5a5a5a5a5a5a5uL,
-    0x5be0cd19137e2179uL ^^^ 0xa5a5a5a5a5a5a5a5uL
-  let h0=
-    let arr =
-      $"SHA-512/{t}".ToCharArray()
-      |> Array.map byte
-      |> sha512_h h0_primeprime
-      |> Array.chunkBySize 8
-      |> Array.map (fun bytes -> bytesToUint64 bytes[0] bytes[1] bytes[2] bytes[3] bytes[4] bytes[5] bytes[6] bytes[7])
-    arr[0], arr[1], arr[2], arr[3], arr[4], arr[5], arr[6], arr[7]
+    let constant = 0xa5a5a5a5a5a5a5a5uL // 0b1010_0101, repeating
+    0x6a09e667f3bcc908uL ^^^ constant,
+    0xbb67ae8584caa73buL ^^^ constant,
+    0x3c6ef372fe94f82buL ^^^ constant,
+    0xa54ff53a5f1d36f1uL ^^^ constant,
+    0x510e527fade682d1uL ^^^ constant,
+    0x9b05688c2b3e6c1fuL ^^^ constant,
+    0x1f83d9abfb41bd6buL ^^^ constant,
+    0x5be0cd19137e2179uL ^^^ constant
+  let h0 =
+    $"SHA-512/{t}".ToCharArray()
+    |> Array.map byte
+    |> sha512_h h0_primeprime
+    |> Array.chunkBySize 8
+    |> Array.map bytesToUint64
+    |> listToTuple
 
   sha512_h h0 >> Array.take (t/8)
 
