@@ -64,3 +64,16 @@ let internal buildArray<'TOut> size (constructor : (int -> 'TOut) -> int -> 'TOu
       value
     )
   Array.init size getValue
+
+/// Takes a tuple and casts all values to 'T options, depending on if the cast is successful
+let internal tupleToArray<'T> (t:obj) = 
+  Microsoft.FSharp.Reflection.FSharpValue.GetTupleFields t
+  |> Array.map (function
+                | :? 'T as value -> Some value
+                | _ -> None)
+
+/// Takes a tuple and casts all values to 'T options.
+/// Will throw an InvalidCastException if any elements are not of the required type
+let internal tupleToHomogeneousArray<'T> (t:obj) =
+  Microsoft.FSharp.Reflection.FSharpValue.GetTupleFields t
+  |> Array.map (fun field -> field :?> 'T)

@@ -227,7 +227,7 @@ let sha1_oo (input : byte[]) : byte[] =
   hhBytes
 
 /// An implementation of the sha1 hash function, taking a functional design approach
-let sha1 (input : byte[]) : byte[] =
+let sha1 =
   let rec sha1_internal t h (words: uint array) =
     if t = -1 then h else
     let a,b,c,d,e = sha1_internal (t-1) h words
@@ -247,23 +247,20 @@ let sha1 (input : byte[]) : byte[] =
     0x1032_5476u,
     0xC3D2_E1F0u
 
-  let h0,h1,h2,h3,h4 =
-    input
-    |> pad64
-    |> Array.chunkBySize 64
-    |> Array.map (buildMessageSchedule32 80 (fun W t ->
-        W (t-3) ^^^ W (t-8) ^^^ W (t-14) ^^^ W (t-16)
-        |> fun value -> rotl value 1
-      )
+  pad64
+  >> Array.chunkBySize 64
+  >> Array.map (buildMessageSchedule32 80 (fun W t ->
+      W (t-3) ^^^ W (t-8) ^^^ W (t-14) ^^^ W (t-16)
+      |> fun value -> rotl value 1
     )
-    |> Seq.fold
-      (fun state chunk -> sha1_internal 79 state chunk |> addTuple_5 state)
-      h_initial
+  )
+  >> Seq.fold
+    (fun state chunk -> sha1_internal 79 state chunk |> addTuple_5 state)
+    h_initial
+  >> tupleToHomogeneousArray<uint32>
+  >> Array.collect (fun h -> Array.init 4 (fun i -> h <<< (8*i) >>> 24 |> byte))
 
-  [|h0;h1;h2;h3;h4|]
-  |> Array.collect (fun h -> Array.init 4 (fun i -> h <<< (8*i) >>> 24 |> byte))
-
-let private sha256_h h_initial (input : byte[]) : byte[]=
+let private sha256_h h_initial =
   let rec sha256_internal t state (words : uint32 array) =
     if t = -1 then state else
     let a,b,c,d,e,f,g,h = sha256_internal (t-1) state words
@@ -279,17 +276,14 @@ let private sha256_h h_initial (input : byte[]) : byte[]=
     f, //g
     g //h
 
-  let h0,h1,h2,h3,h4,h5,h6,h7 =
-    input
-    |> pad64 // §5.1: padding the message
-    |> Array.chunkBySize 64 // §5.2: parsing into message blocks
-    |> Array.map (buildMessageSchedule32 64 (fun W t -> σ256_1 (W (t-2)) + W (t-7) + σ256_0 (W (t-15)) + W (t-16)))
-    |> Seq.fold
-      (fun state chunk -> sha256_internal 63 state chunk |> addTuple_8 state)
-      h_initial
-
-  [|h0;h1;h2;h3;h4;h5;h6;h7|]
-  |> Array.collect (fun h -> Array.init 4 (fun i -> h <<< (8*i) >>> 24 |> byte))
+  pad64 // §5.1: padding the message
+  >> Array.chunkBySize 64 // §5.2: parsing into message blocks
+  >> Array.map (buildMessageSchedule32 64 (fun W t -> σ256_1 (W (t-2)) + W (t-7) + σ256_0 (W (t-15)) + W (t-16)))
+  >> Seq.fold
+    (fun state chunk -> sha256_internal 63 state chunk |> addTuple_8 state)
+    h_initial
+  >> tupleToHomogeneousArray<uint32>
+  >> Array.collect (fun h -> Array.init 4 (fun i -> h <<< (8*i) >>> 24 |> byte))
 
 let sha256 =
   let h_initial = // §5.3.3: H0
@@ -317,7 +311,7 @@ let sha224 =
     0xbefa4fa4u
   sha256_h h_initial >> Array.take 28
 
-let private sha512_h h_initial (input: byte[]) : byte[] =
+let private sha512_h h_initial =
   let rec sha512_internal t state (words : uint64 array) =
     if t = -1 then state else
     let a,b,c,d,e,f,g,h = sha512_internal (t-1) state words
@@ -325,25 +319,22 @@ let private sha512_h h_initial (input: byte[]) : byte[] =
     let T2 = Σ512_0 a + Maj a b c
 
     T1 + T2, //a
-    a, //b
-    b, //c
-    c, //d
-    d + T1, // e
-    e, //f
-    f, //g
-    g //h
+    a,       //b
+    b,       //c
+    c,       //d
+    d + T1,  //e
+    e,       //f
+    f,       //g
+    g        //h
 
-  let h0,h1,h2,h3,h4,h5,h6,h7 = 
-    input
-    |> pad128
-    |> Array.chunkBySize 128
-    |> Array.map (buildMessageSchedule64 80 (fun W t -> σ512_1 (W (t-2)) + W (t-7) + σ512_0 (W (t-15)) + W (t-16)))
-    |> Seq.fold
-      (fun state chunk -> sha512_internal 79 state chunk |> addTuple_8 state)
-      h_initial
-
-  [|h0;h1;h2;h3;h4;h5;h6;h7|]
-  |> Array.collect (fun h -> Array.init 8 (fun i -> h <<< (8*i) >>> (64-8) |> byte))
+  pad128
+  >> Array.chunkBySize 128
+  >> Array.map (buildMessageSchedule64 80 (fun W t -> σ512_1 (W (t-2)) + W (t-7) + σ512_0 (W (t-15)) + W (t-16)))
+  >> Seq.fold
+    (fun state chunk -> sha512_internal 79 state chunk |> addTuple_8 state)
+    h_initial
+  >> tupleToHomogeneousArray<uint64>
+  >> Array.collect (fun h -> Array.init 8 (fun i -> h <<< (8*i) >>> (64-8) |> byte))
 
 let sha512 =
   let h_initial = // § 5.3.5: H0
